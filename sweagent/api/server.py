@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 try:
     import flask  # noqa
 except ImportError as e:
@@ -6,38 +8,35 @@ except ImportError as e:
         "Please go to the root of the repository and run `pip install -e .`"
     )
     raise RuntimeError(msg) from e
-from contextlib import redirect_stderr, redirect_stdout
+import atexit
 import copy
 import json
-import os
-from pathlib import Path
+import sys
+import tempfile
 import time
 import traceback
-from typing import Any, Dict
-from flask import Flask, render_template, request, make_response
-import sys
+from contextlib import redirect_stderr, redirect_stdout
+from pathlib import Path
+from typing import Any
+from uuid import uuid4
 
 import yaml
+from flask import Flask, make_response, render_template, request, session
+from flask_cors import CORS
+from flask_socketio import SocketIO
 
 from sweagent import CONFIG_DIR, PACKAGE_DIR
 from sweagent.agent.agents import AgentArguments
 from sweagent.agent.models import ModelArguments
-from sweagent.api.utils import ThreadWithExc, AttrDict
+from sweagent.api.hooks import AgentUpdateHook, EnvUpdateHook, MainUpdateHook, WebUpdate
+from sweagent.api.utils import AttrDict, ThreadWithExc
 from sweagent.environment.swe_env import EnvironmentArguments
-from sweagent.api.hooks import EnvUpdateHook, WebUpdate, MainUpdateHook, AgentUpdateHook
-import sweagent.environment.utils as env_utils
-from flask_socketio import SocketIO
-from flask_cors import CORS
-from flask import session
-from uuid import uuid4
-import tempfile
-import atexit
 
 # baaaaaaad
 sys.path.append(str(PACKAGE_DIR.parent))
-from run import ActionsArguments, ScriptArguments, Main
+from run import ActionsArguments, Main, ScriptArguments
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder=Path(__file__).parent)
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 # Setting these variables outside of `if __name__ == "__main__"` because when run Flask server with
@@ -46,10 +45,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 app.secret_key = "super secret key"
 app.config["SESSION_TYPE"] = "memcache"
 
-THREADS: Dict[str, "MainThread"] = {}
-
-os.environ["SWE_AGENT_EXPERIMENTAL_COMMUNICATE"] = "1"
-env_utils.START_UP_DELAY = 1
+THREADS: dict[str, MainThread] = {}
 
 
 def ensure_session_id_set():
@@ -140,13 +136,14 @@ def run():
     print(run.environment.base_commit)
     model_name: str = run.agent.model.model_name
     environment_setup = ""
-    environment_input_type = run.environment.environment_setup.input_type 
+    environment_input_type = run.environment.environment_setup.input_type
     if environment_input_type == "manual":
         environment_setup = str(write_env_yaml(run.environment.environment_setup.manual))
     elif environment_input_type == "script_path":
         environment_setup = run.environment.environment_setup.script_path["script_path"]
     else:
-        raise ValueError(f"Unknown input type: {environment_input_type}")
+        msg = f"Unknown input type: {environment_input_type}"
+        raise ValueError(msg)
     if not environment_setup.strip():
         environment_setup = None
     test_run: bool = run.extra.test_run
@@ -209,4 +206,4 @@ def _build_cors_preflight_response():
 
 if __name__ == "__main__":
     app.debug = True
-    socketio.run(app, port=8000, debug=True)
+    socketio.run(app, port=8000, debug=True, allow_unsafe_werkzeug=True)

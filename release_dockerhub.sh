@@ -45,7 +45,7 @@ DOCKER_CONTEXT_NAME="sweagent-multiplatform"
 docker buildx use "$DOCKER_CONTEXT_NAME" ||  docker buildx create --use --name "$DOCKER_CONTEXT_NAME"
 
 on_error() {
-    echo "====> ERROR!!! IMPORTANT: Make sure if you've already pushed something to dockerhub or pushed the tag to github!" >&2
+    echo "====> ERROR!!! IMPORTANT: Make sure that you've already pushed something to dockerhub or pushed the tag to github!" >&2
 }
 trap on_error ERR
 
@@ -53,32 +53,17 @@ echo "------------------------------------------"
 echo "Building swe-agent"
 echo "------------------------------------------"
 docker buildx build  --platform=linux/amd64,linux/arm64  -t ${USER}/swe-agent:${VERSION_STR} -f docker/swe.Dockerfile --push .
-echo "🔥 swe-agent pushed to dockerhub" 
+echo "🔥 swe-agent pushed to dockerhub"
 echo "------------------------------------------"
 echo "Building swe-eval"
 echo "------------------------------------------"
 docker buildx build  --platform=linux/amd64,linux/arm64 -t ${USER}/swe-eval:${VERSION_STR} -f docker/eval.Dockerfile --push .
-echo "🔥 swe-eval pushed to dockerhub" 
+echo "🔥 swe-eval pushed to dockerhub"
 echo "------------------------------------------"
 echo "Building swe-agent-run"
 echo "------------------------------------------"
 docker buildx build  --platform=linux/amd64,linux/arm64 -t ${USER}/swe-agent-run:${VERSION_STR} --push .
-echo "🔥 swe-agent-run pushed to dockerhub" 
+echo "🔥 swe-agent-run pushed to dockerhub"
 echo "------------------------------------------"
 echo "Building of all images done"
 echo "------------------------------------------"
-
-
-if [ "$VERSION_STR" != "latest" ]; then
-    git tag v${VERSION_STR} || {
-        echo "Failed to create a tag in git" >&2
-        exit 5
-    }
-    echo "🔥 Tag v${VERSION_STR} created in git (local)!"
-
-    git push origin v${VERSION_STR} || {
-        echo "Failed to push the tag to github" >&2
-        exit 6
-    }
-    echo "🔥 Tag v${VERSION_STR} pushed to github"
-fi
